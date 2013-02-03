@@ -1,0 +1,351 @@
+﻿<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Tip Me Generator</title>
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+    <script>
+        /**
+         * jQuery.ajax mid - CROSS DOMAIN AJAX 
+         * ---
+         * @author James Padolsey (http://james.padolsey.com)
+         * @version 0.11
+         * @updated 12-JAN-10
+         * ---
+         * Note: Read the README!
+         * ---
+         * @info http://james.padolsey.com/javascript/cross-domain-requests-with-jquery/
+         */
+
+        jQuery.ajax = (function (_ajax) {
+
+            var protocol = location.protocol,
+                hostname = location.hostname,
+                exRegex = RegExp(protocol + '//' + hostname),
+                YQL = 'http' + (/^https/.test(protocol) ? 's' : '') + '://query.yahooapis.com/v1/public/yql?callback=?',
+                query = 'select * from html where url="{URL}" and xpath="*"';
+
+            function isExternal(url) {
+                return !exRegex.test(url) && /:\/\//.test(url);
+            }
+
+            return function (o) {
+
+                var url = o.url;
+
+                if (/get/i.test(o.type) && !/json/i.test(o.dataType) && isExternal(url)) {
+
+                    // Manipulate options so that JSONP-x request is made to YQL
+
+                    o.url = YQL;
+                    o.dataType = 'json';
+
+                    o.data = {
+                        q: query.replace(
+                            '{URL}',
+                            url + (o.data ?
+                                (/\?/.test(url) ? '&' : '?') + jQuery.param(o.data)
+                            : '')
+                        ),
+                        format: 'xml'
+                    };
+
+                    // Since it's a JSONP request
+                    // complete === success
+                    if (!o.success && o.complete) {
+                        o.success = o.complete;
+                        delete o.complete;
+                    }
+
+                    o.success = (function (_success) {
+                        return function (data) {
+
+                            if (_success) {
+                                // Fake XHR callback.
+                                _success.call(this, {
+                                    responseText: (data.results[0] || '')
+                                        // YQL screws with <script>s
+                                        // Get rid of them
+                                        .replace(/<script[^>]+?\/>|<script(.|\s)*?\/script>/gi, '')
+                                }, 'success');
+                            }
+
+                        };
+                    })(o.success);
+
+                }
+
+                return _ajax.apply(this, arguments);
+
+            };
+
+        })(jQuery.ajax);
+    </script>
+    <link rel="stylesheet" href="bootstrap.min.css" />
+    <style>
+        .jumbotron {
+            position: relative;
+            padding: 40px 0;
+            color: #fff;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0,0,0,.4), 0 0 30px rgba(0,0,0,.075);
+            background: #020031; /* Old browsers */
+            background: -moz-linear-gradient(45deg,  #020031 0%, #6d3353 100%); /* FF3.6+ */
+            background: -webkit-gradient(linear, left bottom, right top, color-stop(0%,#020031), color-stop(100%,#6d3353)); /* Chrome,Safari4+ */
+            background: -webkit-linear-gradient(45deg,  #020031 0%,#6d3353 100%); /* Chrome10+,Safari5.1+ */
+            background: -o-linear-gradient(45deg,  #020031 0%,#6d3353 100%); /* Opera 11.10+ */
+            background: -ms-linear-gradient(45deg,  #020031 0%,#6d3353 100%); /* IE10+ */
+            background: linear-gradient(45deg,  #020031 0%,#6d3353 100%); /* W3C */
+            filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#020031', endColorstr='#6d3353',GradientType=1 ); /* IE6-9 fallback on horizontal gradient */
+            -webkit-box-shadow: inset 0 3px 7px rgba(0,0,0,.2), inset 0 -3px 7px rgba(0,0,0,.2);
+                -moz-box-shadow: inset 0 3px 7px rgba(0,0,0,.2), inset 0 -3px 7px rgba(0,0,0,.2);
+                    box-shadow: inset 0 3px 7px rgba(0,0,0,.2), inset 0 -3px 7px rgba(0,0,0,.2);
+        }
+        .jumbotron h1 {
+            font-size: 80px;
+            font-weight: bold;
+            letter-spacing: -1px;
+            line-height: 1;
+        }
+       /* Masthead (docs home)
+        ------------------------- */
+        .masthead {
+            padding: 70px 0 80px;
+            margin-bottom: 0;
+            color: #fff;
+        }
+        .masthead h1 {
+            font-size: 80px;
+            line-height: 1;
+            letter-spacing: -2px;
+        }
+
+        #container
+        {
+            text-align: center; width:80%; margin:auto;
+        }
+        #linkCode, #url
+        {
+            width: 80%;
+        }
+        .linkCode
+        {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="jumbotron masthead"><h1>Tip Me Generator</h1></div>
+
+    <div id="container">
+
+        <div><h1 id="conversation"></h1></div>
+        <br />   
+        <p><input type="text" id="input"/></p>
+        <p>
+            <input id="action" type="button" class="btn btn-primary btn-large" />
+            <input id="confirmNo" type="button" class="btn btn-primary btn-large" value="No" accesskey="N"/>
+            <input id="confirmYes" type="button" class="btn btn-primary btn-large" value="Yes" accesskey="Y"/>
+        </p>
+        <br />
+        <br />
+        <br />
+        <div class="linkCode">
+            <h5>Html link:</h5>
+            <input type="text" id="linkCode" />
+            <h5>Url only:</h5>
+            <input type="text" id="url" />
+        </div>
+    </div>
+    <script type="text/javascript">
+        $(function () {
+            new Wizard().addStep(getBroadcasterId)
+                        .addStep(getLinkText)
+                        .addStep(confirmAmt)
+                        .addStep(getAmt)
+                        .addStep(confirmTipNote)
+                        .addStep(getTipNote)
+                        .addStep(done)
+                        .run();
+
+            $("#input").keydown(function (evt) {
+                if (evt.which == 13) {
+                    $("#action").click();
+                }
+            });
+            $("#input").focus();
+        });
+
+        function Wizard()
+        {
+            var steps = [];
+            var state = {};
+            var currentStep = 0;
+            function addStep(step) {
+                steps.push(step);
+                return this;
+            }
+            function next() {
+                if (++currentStep < steps.length)
+                    steps[currentStep].init(state, next, skip);
+            }
+            function previous() {
+                if (--currentStep > 0)
+                    steps[currentStep].init(state, next, skip);
+            }
+            function skip() {
+                currentStep += 2;
+                steps[currentStep].init(state, next, skip);
+            }
+            function run() {
+                steps[currentStep].init(state, next);
+            }
+            return {
+                addStep: addStep,
+                run: run
+            }
+        }
+
+        var linkTemplate = "<a href='HREF_TEXT'>TIPME_TEXT</a>";
+        var hrefTemplate = "http://www.myfreecams.com/mfc2/php/tip.php?&request=tip&broadcaster_id=BROADCASTER_ID";
+
+        var getBroadcasterId = {
+            init: function(state, next){
+                $("#conversation").html("Hi there!  What is your MFC Model Name?");
+                $("#action").prop("value", "Find My Broadcaster ID!");
+                $("#input").prop("placeholder", "Your model name...");
+                $(".linkCode").hide();
+                $("#confirmNo").hide();
+                $("#confirmYes").hide();
+                $("#action").on("click", function () {
+
+                    var modelName = $("#input").val();
+
+                    $("#conversation").html("Thanks! I'm trying to determine it now...");
+
+                    $.ajax({
+                        url: "http://profiles.myfreecams.com/" + modelName,
+                        type: "get"
+                    }).then(function (data) {
+                        var broadcasterRegex = /broadcaster_id=(\d*)/gi;
+                        var match = broadcasterRegex.exec(data.results[0]);
+                        if (null == match) {
+                            $("#conversation").html("Sorry, I couldn't find a model by that name. Try again?");
+                            $("#input").select().focus();
+                        } else {
+                            state.modelName = modelName;
+                            state.broadcasterId = match[1];
+                            state.href = hrefTemplate.replace("BROADCASTER_ID", state.broadcasterId);
+                            $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href));
+                            $("#url").val(state.href);
+                            next();
+                        }
+                    }, function (data) {
+                        $("#conversation").html("Sorry, I had some trouble searching. Try again?");
+                        $("#input").select().focus();
+                    });
+                });
+            }
+        };
+        var getLinkText = {
+            init: function (state, next) {
+                $("#conversation").html("Ok, " + state.modelName + ", I've got it.  What would you like the link to say?");
+                $("#action").prop("value", "Say that!");
+                $("#input").val("").prop("placeholder", "Tip me!");
+                $(".linkCode").show();
+                $("#confirmNo").hide();
+                $("#confirmYes").hide();
+                $("#action").off("click").on("click", function () {
+                    var text = $("#input").val();
+                    if ("" == text) {
+                        $("#conversation").html("Sorry, you didn't seem to tell me anything!");
+                        $("#input").focus();
+                        return;
+                    }
+                    state.linkText = text;
+                    $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href).replace("TIPME_TEXT", state.linkText));
+                    $("#url").val(state.href);
+                    next();
+                })
+            }
+        };
+        var confirmAmt = {
+            init: function (state, next, skip) {
+                $("#conversation").html("Do you want to add an amount?");
+                $("#action").hide();
+                $("#input").hide();
+                $("#confirmNo").show().off("click").on("click", function () { skip(); });
+                $("#confirmYes").show().off("click").on("click", function () { next(); });
+            }
+        };
+        var getAmt = {
+            init: function (state, next, skip) {
+                $("#conversation").html("What is the amount?");
+                $("#action").show().prop("value","Looks about right!");
+                $("#input").val("").show().prop("placeholder","How many tokens?").focus();
+                $("#confirmNo").hide();
+                $("#confirmYes").hide();
+                $("#action").off("click").on("click", function () {
+                    var amt = $("#input").val();
+                    if ("" == amt) {
+                        $("#conversation").html("Sorry, you don't appear to have entered an amount!");
+                        $("#input").focus();
+                        return;
+                    }
+                    if (isNaN(parseInt(amt, 10)) || parseInt(amt,10) < 1) {
+                        $("#conversation").html("Sorry, that doesn't appear to be a positive number!");
+                        $("#input").select().focus();
+                        return;
+                    }
+                    state.tipAmount = amt;
+                    state.href += "&tip_value=" + state.tipAmount;
+                    $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href).replace("TIPME_TEXT", state.linkText));
+                    $("#url").val(state.href);
+                    next();
+                });
+            }
+        }
+        var confirmTipNote = {
+            init: function (state, next, skip) {
+                $("#conversation").html("Do you want to add a tip note?");
+                $("#action").hide();
+                $("#input").hide();
+                $("#confirmNo").show().off("click").on("click", function () { skip(); });
+                $("#confirmYes").show().off("click").on("click", function () { next(); });
+            }
+        };
+        var getTipNote = {
+            init: function (state, next, skip) {
+                $("#conversation").html("What would you like the note to say?");
+                $("#action").show().prop("value", "Say that!");
+                $("#input").val("").show().prop("placeholder", state.modelName + " is so cool!").focus();
+                $("#confirmNo").hide();
+                $("#confirmYes").hide();
+                $("#action").off("click").on("click", function () {
+                    var note = $("#input").val();
+                    if ("" == note) {
+                        $("#conversation").html("Sorry, you didn't appear to enter a note?");
+                        $("#input").focus();
+                        return;
+                    }
+                    state.tipNote = note;
+                    state.href += "&comment=" + encodeURIComponent(state.tipNote);
+                    $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href).replace("TIPME_TEXT", state.linkText));
+                    $("#url").val(state.href);
+                    next();
+                });
+            }
+        };
+        var done = {
+            init: function (state, next, skip) {
+                $("#conversation").html("That's it! You're done!  Copy the text you need below.");
+                $("#action").hide();
+                $("#input").hide();
+                $("#confirmNo").hide();
+                $("#confirmYes").hide();
+            }
+        }
+    </script>
+</body>
+</html>
