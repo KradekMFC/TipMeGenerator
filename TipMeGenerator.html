@@ -1,10 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
-<html lang="en">
+<html lang="en" ng-app="tipMe">
 <head>
     <meta charset="utf-8" />
     <title>Tip Me Generator</title>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script>
+    <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.0.7/angular.min.js"></script>
+    <script src="app.js"></script>
 
     <link rel="stylesheet" href="bootstrap.min.css" />
     <style>
@@ -49,220 +51,37 @@
         {
             text-align: center; width:80%; margin:auto;
         }
-        #linkCode, #url
+        #linkCode input
         {
             width: 80%;
-        }
-        .linkCode
-        {
-            display: none;
         }
     </style>
 </head>
 <body>
     <div class="jumbotron masthead"><h1>Tip Me Generator</h1></div>
 
-    <div id="container">
+    <div id="container" ng-controller="Wizard">
 
-        <div><h1 id="conversation"></h1></div>
-        <br />   
-        <p><input type="text" id="input"/></p>
+        <div><h1>{{ currentStep.convo }}</h1></div>
+        <br />
+        <p ng-show="currentStep.isActionStep"><input type="text" placeholder="{{ currentStep.inputPlaceholder }}" ng-model="inputValue" autofocus/></p>
         <p>
-            <input id="action" type="button" class="btn btn-primary btn-large" />
-            <input id="confirmNo" type="button" class="btn btn-primary btn-large" value="No" accesskey="N"/>
-            <input id="confirmYes" type="button" class="btn btn-primary btn-large" value="Yes" accesskey="Y"/>
+            <input id="action" type="button" class="btn btn-primary btn-large"
+                   ng-show="currentStep.isActionStep"
+                   ng-click="currentStep.onAction()"
+                   value="{{ currentStep.actionText }}" />
+            <input type="button" class="btn btn-primary btn-large" value="{{ currentStep.firstChoiceText }}" ng-show="currentStep.isChoiceStep" ng-click="currentStep.firstChoiceAction()"/>
+            <input type="button" class="btn btn-primary btn-large" value="{{ currentStep.secondChoiceText }}" accesskey="Y" ng-show="currentStep.isChoiceStep" ng-click="currentStep.secondChoiceAction()"/>
         </p>
         <br />
-        <br />
-        <br />
-        <div class="linkCode">
+        <div id="linkCode" ng-show="state.hasBroadcasterId()">
+            <h5>What it looks like:</h5>
+            <div ng-bind-html-unsafe="state.getLink()"></div>
             <h5>Html link:</h5>
-            <input type="text" id="linkCode" />
+            <input type="text" value="{{ state.getLink() }}" />
             <h5>Url only:</h5>
-            <input type="text" id="url" />
+            <input type="text" value="{{ state.getUrl() }}" />
         </div>
     </div>
-    <script type="text/javascript">
-        $(function () {
-            new Wizard().addStep(getBroadcasterId)
-                        .addStep(getLinkText)
-                        .addStep(confirmAmt)
-                        .addStep(getAmt)
-                        .addStep(confirmTipNote)
-                        .addStep(getTipNote)
-                        .addStep(done)
-                        .run();
-
-            $("#input").keydown(function (evt) {
-                if (evt.which == 13) {
-                    $("#action").click();
-                }
-            });
-            $("#input").focus();
-        });
-
-        function Wizard()
-        {
-            var steps = [];
-            var state = {};
-            var currentStep = 0;
-            function addStep(step) {
-                steps.push(step);
-                return this;
-            }
-            function next() {
-                if (++currentStep < steps.length)
-                    steps[currentStep].init(state, next, skip);
-            }
-            function previous() {
-                if (--currentStep > 0)
-                    steps[currentStep].init(state, next, skip);
-            }
-            function skip() {
-                currentStep += 2;
-                steps[currentStep].init(state, next, skip);
-            }
-            function run() {
-                steps[currentStep].init(state, next);
-            }
-            return {
-                addStep: addStep,
-                run: run
-            }
-        }
-
-        var linkTemplate = "<a href='HREF_TEXT'>TIPME_TEXT</a>";
-        var hrefTemplate = "http://www.myfreecams.com/mfc2/php/tip.php?&request=tip&broadcaster_id=BROADCASTER_ID";
-
-        var getBroadcasterId = {
-            init: function(state, next){
-                $("#conversation").html("Hi there!  What is your MFC Model Name?");
-                $("#action").prop("value", "Find My Broadcaster ID!");
-                $("#input").prop("placeholder", "Your model name...");
-                $(".linkCode").hide();
-                $("#confirmNo").hide();
-                $("#confirmYes").hide();
-                $("#action").on("click", function () {
-
-                    var modelName = $("#input").val();
-
-                    $("#conversation").html("Thanks! I'm trying to determine it now...");
-
-                    $.ajax({
-                        url: "http://mfcuserlookup.azurewebsites.net/?username=" + modelName,
-                        type: "get"
-                    }).then(function (data) {
-                        state.modelName = modelName;
-                        state.broadcasterId = data.uid;
-                        state.href = hrefTemplate.replace("BROADCASTER_ID", state.broadcasterId);
-                        $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href));
-                        $("#url").val(state.href);
-                        next();
-                   }, function (data) {
-                        $("#conversation").html("Sorry, I had some trouble searching. Try again?");
-                        $("#input").select().focus();
-                    });
-                });
-            }
-        };
-        var getLinkText = {
-            init: function (state, next) {
-                $("#conversation").html("Ok, " + state.modelName + ", I've got it.  What would you like the link to say?");
-                $("#action").prop("value", "Say that!");
-                $("#input").val("").prop("placeholder", "Tip me!");
-                $(".linkCode").show();
-                $("#confirmNo").hide();
-                $("#confirmYes").hide();
-                $("#action").off("click").on("click", function () {
-                    var text = $("#input").val();
-                    if ("" == text) {
-                        $("#conversation").html("Sorry, you didn't seem to tell me anything!");
-                        $("#input").focus();
-                        return;
-                    }
-                    state.linkText = text;
-                    $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href).replace("TIPME_TEXT", state.linkText));
-                    $("#url").val(state.href);
-                    next();
-                })
-            }
-        };
-        var confirmAmt = {
-            init: function (state, next, skip) {
-                $("#conversation").html("Do you want to add an amount?");
-                $("#action").hide();
-                $("#input").hide();
-                $("#confirmNo").show().off("click").on("click", function () { skip(); });
-                $("#confirmYes").show().off("click").on("click", function () { next(); });
-            }
-        };
-        var getAmt = {
-            init: function (state, next, skip) {
-                $("#conversation").html("What is the amount?");
-                $("#action").show().prop("value","Looks about right!");
-                $("#input").val("").show().prop("placeholder","How many tokens?").focus();
-                $("#confirmNo").hide();
-                $("#confirmYes").hide();
-                $("#action").off("click").on("click", function () {
-                    var amt = $("#input").val();
-                    if ("" == amt) {
-                        $("#conversation").html("Sorry, you don't appear to have entered an amount!");
-                        $("#input").focus();
-                        return;
-                    }
-                    if (isNaN(parseInt(amt, 10)) || parseInt(amt,10) < 1) {
-                        $("#conversation").html("Sorry, that doesn't appear to be a positive number!");
-                        $("#input").select().focus();
-                        return;
-                    }
-                    state.tipAmount = amt;
-                    state.href += "&tip_value=" + state.tipAmount;
-                    $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href).replace("TIPME_TEXT", state.linkText));
-                    $("#url").val(state.href);
-                    next();
-                });
-            }
-        }
-        var confirmTipNote = {
-            init: function (state, next, skip) {
-                $("#conversation").html("Do you want to add a tip note?");
-                $("#action").hide();
-                $("#input").hide();
-                $("#confirmNo").show().off("click").on("click", function () { skip(); });
-                $("#confirmYes").show().off("click").on("click", function () { next(); });
-            }
-        };
-        var getTipNote = {
-            init: function (state, next, skip) {
-                $("#conversation").html("What would you like the note to say?");
-                $("#action").show().prop("value", "Say that!");
-                $("#input").val("").show().prop("placeholder", state.modelName + " is so cool!").focus();
-                $("#confirmNo").hide();
-                $("#confirmYes").hide();
-                $("#action").off("click").on("click", function () {
-                    var note = $("#input").val();
-                    if ("" == note) {
-                        $("#conversation").html("Sorry, you didn't appear to enter a note?");
-                        $("#input").focus();
-                        return;
-                    }
-                    state.tipNote = note;
-                    state.href += "&comment=" + encodeURIComponent(state.tipNote);
-                    $("#linkCode").val(linkTemplate.replace("HREF_TEXT", state.href).replace("TIPME_TEXT", state.linkText));
-                    $("#url").val(state.href);
-                    next();
-                });
-            }
-        };
-        var done = {
-            init: function (state, next, skip) {
-                $("#conversation").html("That's it! You're done!  Copy the text you need below.");
-                $("#action").hide();
-                $("#input").hide();
-                $("#confirmNo").hide();
-                $("#confirmYes").hide();
-            }
-        }
-    </script>
 </body>
 </html>
