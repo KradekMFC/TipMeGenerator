@@ -2,10 +2,6 @@ var tipMe = angular.module("tipMe",[]);
 
 tipMe.controller("Wizard", function($scope, $http){
 
-    var linkTemplate = "<a href='HREF_TEXT'>TIPME_TEXT</a>";
-    var hrefTemplate = "http://www.myfreecams.com/mfc2/php/tip.php?&request=tip&broadcaster_id=BROADCASTER_ID";
-    var imgTemplate = "<img src='SRC_TEXT' />";
-
     var state = new State();
 
     var getBroadcasterId = new ActionStep("Hi there!  What is your MFC Model Name?",
@@ -13,7 +9,7 @@ tipMe.controller("Wizard", function($scope, $http){
             var step = this;
             state.setModelName($scope.inputValue);
             step.convo = "Thanks! I'm trying to determine it now...";
-            $http.get("http://mfcuserlookup.azurewebsites.net/?username=" + $scope.inputValue)
+            $http.get("//mfcuserlookup.azurewebsites.net/?username=" + $scope.inputValue)
                 .then(function(response){
                     if (response.data && response.data.error){
                         step.convo = "Sorry, the server said, " + response.data.error + " Try again?";
